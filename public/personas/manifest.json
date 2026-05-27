@@ -1,0 +1,17 @@
+[
+  { "id": "general-contrarian", "file": "general-contrarian.md", "domain": "general" },
+  { "id": "general-first-principles", "file": "general-first-principles.md", "domain": "general" },
+  { "id": "general-expansionist", "file": "general-expansionist.md", "domain": "general" },
+  { "id": "general-outsider", "file": "general-outsider.md", "domain": "general" },
+  { "id": "general-executor", "file": "general-executor.md", "domain": "general" },
+  { "id": "software-architect", "file": "software-architect.md", "domain": "software" },
+  { "id": "software-maintainer", "file": "software-maintainer.md", "domain": "software" },
+  { "id": "software-security", "file": "software-security.md", "domain": "software" },
+  { "id": "software-product", "file": "software-product.md", "domain": "software" },
+  { "id": "software-executor", "file": "software-executor.md", "domain": "software" },
+  { "id": "trading-bull", "file": "trading-bull.md", "domain": "trading" },
+  { "id": "trading-bear", "file": "trading-bear.md", "domain": "trading" },
+  { "id": "trading-risk-manager", "file": "trading-risk-manager.md", "domain": "trading" },
+  { "id": "trading-technician", "file": "trading-technician.md", "domain": "trading" },
+  { "id": "trading-executor", "file": "trading-executor.md", "domain": "trading" }
+]
