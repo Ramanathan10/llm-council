@@ -52,7 +52,7 @@ type CouncilRun = {
   chair: ChairVerdict
 }
 
-type ProviderMode = 'mock' | 'openrouter'
+type ProviderMode = 'mock' | 'openai' | 'openrouter'
 
 const domainLabels: Record<Domain, string> = {
   general: 'General',
@@ -241,15 +241,29 @@ function parseModelJson<T>(content: string, fallback: T): T {
   }
 }
 
-async function callOpenRouter(apiKey: string, model: string, messages: unknown[]) {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+async function callChatCompletion(
+  provider: Exclude<ProviderMode, 'mock'>,
+  apiKey: string,
+  model: string,
+  messages: unknown[],
+) {
+  const endpoint =
+    provider === 'openai'
+      ? 'https://api.openai.com/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions'
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  }
+
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = window.location.href
+    headers['X-Title'] = 'LLM Council'
+  }
+
+  const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': window.location.href,
-      'X-Title': 'LLM Council',
-    },
+    headers,
     body: JSON.stringify({
       model,
       temperature: 0.35,
@@ -258,17 +272,19 @@ async function callOpenRouter(apiKey: string, model: string, messages: unknown[]
   })
 
   if (!response.ok) {
-    throw new Error(`OpenRouter returned ${response.status}`)
+    const label = provider === 'openai' ? 'OpenAI' : 'OpenRouter'
+    throw new Error(`${label} returned ${response.status}`)
   }
 
   const data = await response.json()
   return data.choices?.[0]?.message?.content as string
 }
 
-async function buildOpenRouterCouncil(
+async function buildProviderCouncil(
   question: string,
   domain: Domain,
   personas: Persona[],
+  provider: Exclude<ProviderMode, 'mock'>,
   apiKey: string,
   model: string,
 ): Promise<CouncilRun> {
@@ -281,7 +297,7 @@ async function buildOpenRouterCouncil(
         nextStep: 'Retry the run or switch to mock mode.',
         confidence: 50,
       }
-      const content = await callOpenRouter(apiKey, model, [
+      const content = await callChatCompletion(provider, apiKey, model, [
         {
           role: 'system',
           content: `${persona.prompt}\n\nReturn only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100).`,
@@ -312,7 +328,7 @@ async function buildOpenRouterCouncil(
         blindSpot: 'No valid blind spot returned.',
         missed: 'No valid missed item returned.',
       }
-      const content = await callOpenRouter(apiKey, model, [
+      const content = await callChatCompletion(provider, apiKey, model, [
         {
           role: 'system',
           content: `${reviewer.prompt}\n\nYou are anonymously reviewing peer responses. Do not infer author names. Return only JSON with keys: strongest, blindSpot, missed.`,
@@ -330,7 +346,7 @@ async function buildOpenRouterCouncil(
   )
 
   const chairFallback = buildMockCouncil(question, domain, personas).chair
-  const chairContent = await callOpenRouter(apiKey, model, [
+  const chairContent = await callChatCompletion(provider, apiKey, model, [
     {
       role: 'system',
       content:
@@ -423,11 +439,17 @@ function App() {
   const [isRunning, setIsRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [providerMode, setProviderMode] = useState<ProviderMode>('mock')
+  const [apiKey, setApiKey] = useState(
+    () => localStorage.getItem('llm-council-api-key') ?? '',
+  )
   const [openRouterKey, setOpenRouterKey] = useState(
     () => localStorage.getItem('llm-council-openrouter-key') ?? '',
   )
   const [model, setModel] = useState(
-    () => localStorage.getItem('llm-council-model') ?? '',
+    () => localStorage.getItem('llm-council-model') ?? 'gpt-4.1-mini',
+  )
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<Set<string>>(
+    () => new Set(),
   )
 
   useEffect(() => {
@@ -460,6 +482,13 @@ function App() {
       )
 
       setPersonas(loaded)
+      setSelectedPersonaIds(
+        new Set(
+          loaded
+            .filter((persona) => persona.domain === 'software')
+            .map((persona) => persona.id),
+        ),
+      )
       setIsLoading(false)
     }
 
@@ -474,31 +503,59 @@ function App() {
     [domain, personas],
   )
 
+  const selectedPersonas = useMemo(
+    () => domainPersonas.filter((persona) => selectedPersonaIds.has(persona.id)),
+    [domainPersonas, selectedPersonaIds],
+  )
+
   function changeDomain(nextDomain: Domain) {
     setDomain(nextDomain)
     setQuestion(sampleQuestions[nextDomain])
     setActiveRun(null)
+    setSelectedPersonaIds(
+      new Set(
+        personas
+          .filter((persona) => persona.domain === nextDomain)
+          .map((persona) => persona.id),
+      ),
+    )
+  }
+
+  function togglePersona(personaId: string) {
+    setSelectedPersonaIds((current) => {
+      const next = new Set(current)
+      if (next.has(personaId)) next.delete(personaId)
+      else next.add(personaId)
+      return next
+    })
   }
 
   async function runCouncil() {
-    if (!question.trim() || domainPersonas.length === 0) return
+    if (!question.trim() || selectedPersonas.length === 0) return
     setIsRunning(true)
     setRunError(null)
     try {
+      const selectedKey =
+        providerMode === 'openrouter' ? openRouterKey.trim() : apiKey.trim()
+      if (providerMode !== 'mock' && (!selectedKey || !model.trim())) {
+        throw new Error('Add an API key and model, or switch back to Mock mode.')
+      }
       const run =
-        providerMode === 'openrouter' && openRouterKey.trim() && model.trim()
-          ? await buildOpenRouterCouncil(
+        providerMode !== 'mock'
+          ? await buildProviderCouncil(
               question,
               domain,
-              domainPersonas,
-              openRouterKey.trim(),
+              selectedPersonas,
+              providerMode,
+              selectedKey,
               model.trim(),
             )
-          : buildMockCouncil(question, domain, domainPersonas)
+          : buildMockCouncil(question, domain, selectedPersonas)
       setActiveRun(run)
       const nextHistory = [run, ...history].slice(0, 12)
       setHistory(nextHistory)
       localStorage.setItem('llm-council-history', JSON.stringify(nextHistory))
+      localStorage.setItem('llm-council-api-key', apiKey)
       localStorage.setItem('llm-council-openrouter-key', openRouterKey)
       localStorage.setItem('llm-council-model', model)
     } catch (error) {
@@ -549,7 +606,7 @@ function App() {
 
           <div className="control-group">
             <span className="control-label">Run mode</span>
-            <div className="segmented two-up">
+            <div className="segmented provider-mode">
               <button
                 className={providerMode === 'mock' ? 'active' : ''}
                 onClick={() => setProviderMode('mock')}
@@ -558,8 +615,25 @@ function App() {
                 Mock
               </button>
               <button
+                className={providerMode === 'openai' ? 'active' : ''}
+                onClick={() => {
+                  setProviderMode('openai')
+                  if (!model.trim() || model.startsWith('openai/')) {
+                    setModel('gpt-4.1-mini')
+                  }
+                }}
+                type="button"
+              >
+                OpenAI
+              </button>
+              <button
                 className={providerMode === 'openrouter' ? 'active' : ''}
-                onClick={() => setProviderMode('openrouter')}
+                onClick={() => {
+                  setProviderMode('openrouter')
+                  if (!model.trim() || model === 'gpt-4.1-mini') {
+                    setModel('openai/gpt-4o-mini')
+                  }
+                }}
                 type="button"
               >
                 OpenRouter
@@ -567,20 +641,34 @@ function App() {
             </div>
           </div>
 
-          {providerMode === 'openrouter' ? (
+          {providerMode !== 'mock' ? (
             <div className="control-group">
               <span className="control-label">Provider</span>
-              <input
-                aria-label="OpenRouter API key"
-                onChange={(event) => setOpenRouterKey(event.target.value)}
-                placeholder="OpenRouter API key"
-                type="password"
-                value={openRouterKey}
-              />
+              {providerMode === 'openai' ? (
+                <input
+                  aria-label="OpenAI API key"
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="OpenAI API key"
+                  type="password"
+                  value={apiKey}
+                />
+              ) : (
+                <input
+                  aria-label="OpenRouter API key"
+                  onChange={(event) => setOpenRouterKey(event.target.value)}
+                  placeholder="OpenRouter API key"
+                  type="password"
+                  value={openRouterKey}
+                />
+              )}
               <input
                 aria-label="Model id"
                 onChange={(event) => setModel(event.target.value)}
-                placeholder="Model id, for example openai/gpt-4o-mini"
+                placeholder={
+                  providerMode === 'openai'
+                    ? 'Model id, for example gpt-4.1-mini'
+                    : 'Model id, for example openai/gpt-4o-mini'
+                }
                 value={model}
               />
               <p className="hint">Stored only in this browser's local storage.</p>
@@ -597,14 +685,49 @@ function App() {
           {runError ? <p className="load-error">{runError}</p> : null}
 
           <div className="persona-list">
-            <span className="control-label">Markdown personas</span>
+            <div className="persona-list-header">
+              <span className="control-label">
+                Personas selected ({selectedPersonas.length}/{domainPersonas.length})
+              </span>
+              <button
+                className="text-button"
+                onClick={() => {
+                  const allSelected = selectedPersonas.length === domainPersonas.length
+                  setSelectedPersonaIds(
+                    new Set(allSelected ? [] : domainPersonas.map((persona) => persona.id)),
+                  )
+                }}
+                type="button"
+              >
+                {selectedPersonas.length === domainPersonas.length
+                  ? 'Clear'
+                  : 'Select all'}
+              </button>
+            </div>
             {loadError ? <p className="load-error">{loadError}</p> : null}
             {domainPersonas.map((persona) => (
-              <article className="persona-chip" key={persona.id}>
-                <strong>{persona.name}</strong>
-                <span>{persona.stance}</span>
+              <article
+                className={`persona-chip ${
+                  selectedPersonaIds.has(persona.id) ? 'selected' : ''
+                }`}
+                key={persona.id}
+              >
+                <label>
+                  <input
+                    checked={selectedPersonaIds.has(persona.id)}
+                    onChange={() => togglePersona(persona.id)}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>{persona.name}</strong>
+                    <small>{persona.stance}</small>
+                  </span>
+                </label>
               </article>
             ))}
+            {selectedPersonas.length === 0 ? (
+              <p className="load-error">Select at least one persona for the run.</p>
+            ) : null}
           </div>
         </aside>
 

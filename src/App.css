@@ -60,7 +60,7 @@ h1 {
 .muted,
 .section-heading span,
 .control-label,
-.persona-chip span,
+.persona-chip small,
 .history-item span {
   color: #607068;
 }
@@ -130,8 +130,12 @@ textarea {
   resize: vertical;
 }
 
-.two-up {
-  grid-template-columns: 1fr 1fr;
+.provider-mode {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.provider-mode button {
+  text-align: center;
 }
 
 .hint {
@@ -159,9 +163,51 @@ textarea {
   background: #eef2ea;
   border: 1px solid #d8ded2;
   border-radius: 8px;
+  padding: 10px;
+}
+
+.persona-chip.selected {
+  background: #e6f0e7;
+  border-color: #9db99d;
+}
+
+.persona-chip label {
+  align-items: flex-start;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+}
+
+.persona-chip input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  width: auto;
+}
+
+.persona-chip span {
   display: grid;
   gap: 4px;
-  padding: 10px;
+}
+
+.persona-chip small {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.persona-list-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.text-button {
+  background: transparent;
+  border: 0;
+  color: #173f4f;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0;
 }
 
 .load-error {

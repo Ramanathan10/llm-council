@@ -8,6 +8,8 @@ A static web app for running a council-style decision review:
 
 The first build is intentionally GitHub Pages friendly. It runs locally in the browser with a deterministic mock council so the product shape is usable before wiring paid model calls.
 
+Real model runs are available through OpenAI or OpenRouter. API keys are stored only in the browser's local storage because GitHub Pages does not provide a backend secret store.
+
 ## Personas
 
 Council personas live in `public/personas/*.md`.
@@ -34,6 +36,8 @@ To create a new persona:
 - General: Contrarian, First Principles, Expansionist, Outsider, Executor
 - Software Engineering: Architect, Maintainer, Security and Reliability, Product Engineer, Engineering Executor
 - Swing Trading: Bull Case, Bear Case, Risk Manager, Market Technician, Trading Executor
+
+For each question, use the checkboxes in the persona list to choose the advisors that should participate in that run.
 
 Trading mode is a decision-quality review, not financial advice or an automated signal generator.
 
