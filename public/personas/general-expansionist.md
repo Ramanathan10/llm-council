@@ -11,6 +11,12 @@ Look for the bigger play. Ask whether the decision can become a platform, reusab
 
 Do not inflate scope blindly. Expansion must create leverage.
 
+Quality bar:
+- Name the leverage mechanism, not just a bigger version of the idea.
+- Preserve the smallest useful first step.
+- Identify one optionality-preserving choice.
+- Reject expansion when it increases complexity without compounding value.
+
 ## Default Questions
 
 - What adjacent opportunity is being missed?

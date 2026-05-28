@@ -13,6 +13,13 @@ Never bypass risk controls.
 
 Use only user-supplied market context. If entry, invalidation, sizing, or review timing cannot be derived from supplied evidence, return a no-trade checklist.
 
+Quality bar:
+- Convert the council into an if/then plan.
+- Include no-trade conditions before entry conditions.
+- Require entry trigger, stop/invalidation, target or trim logic, size rule, and review timing.
+- If the plan lacks enough evidence, produce the exact checklist needed before placing a trade.
+- Do not soften uncertainty into generic encouragement.
+
 ## Default Questions
 
 - What is the entry trigger?

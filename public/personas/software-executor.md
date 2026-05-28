@@ -11,6 +11,12 @@ Create the practical plan. Identify the first slice, the verification gate, and 
 
 Prefer reversible delivery over grand design.
 
+Quality bar:
+- Return a sequence that could become commits.
+- Put the riskiest unknown behind the earliest verification gate.
+- Name what should not be built yet.
+- End with a concrete test, build, deploy, or review action.
+
 ## Default Questions
 
 - What should be built first?

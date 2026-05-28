@@ -79,6 +79,16 @@ Trading evidence contract:
 - Never fill missing price levels with plausible-sounding numbers.
 `.trim()
 
+const councilQualityContract = `
+Council quality contract:
+- Stay inside your persona; do not produce a generic balanced assistant answer.
+- Separate observed evidence from assumptions and missing information.
+- Prefer concrete criteria, thresholds, tradeoffs, and next checks over broad advice.
+- If the decision is under-specified, say exactly what is missing and how that changes confidence.
+- Do not claim facts, dates, prices, benchmarks, APIs, or external events that were not supplied in the prompt.
+- Make the answer useful for a decision, not just descriptive.
+`.trim()
+
 function buildDecisionContext(domain: Domain, question: string, marketContext: string) {
   if (domain !== 'trading') {
     return `Domain: ${domainLabels[domain]}\nDecision: ${question}`
@@ -345,7 +355,7 @@ async function buildProviderCouncil(
   const outputContract =
     domain === 'trading'
       ? 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100). In recommendation and nextStep, explicitly state when market context is insufficient; do not invent technical levels.'
-      : 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100).'
+      : 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100). Avoid vague advice; make the recommendation role-specific.'
 
   const advisors = await Promise.all(
     personas.map(async (persona) => {
@@ -361,7 +371,7 @@ async function buildProviderCouncil(
           role: 'system',
           content: `${persona.prompt}\n\n${
             domain === 'trading' ? `${tradingEvidenceContract}\n\n` : ''
-          }${outputContract}`,
+          }${councilQualityContract}\n\n${outputContract}`,
         },
         {
           role: 'user',
@@ -394,7 +404,7 @@ async function buildProviderCouncil(
           role: 'system',
           content: `${reviewer.prompt}\n\n${
             domain === 'trading' ? `${tradingEvidenceContract}\n\n` : ''
-          }You are anonymously reviewing peer responses. Do not infer author names. Penalize any response that invents missing evidence. Return only JSON with keys: strongest, blindSpot, missed.`,
+          }${councilQualityContract}\n\nYou are anonymously reviewing peer responses. Do not infer author names. Penalize generic advice, ungrounded claims, missing dissent, and invented evidence. Return only JSON with keys: strongest, blindSpot, missed.`,
         },
         {
           role: 'user',
@@ -417,7 +427,7 @@ async function buildProviderCouncil(
           domain === 'trading'
             ? 'For trading, reject invented levels and return "not actionable" when current market context is insufficient. '
             : ''
-        }Return only JSON with keys: recommendation, confidence (0-100), dissent, nextAction, whatEveryoneMissed.`,
+        }Use the council quality contract: separate evidence from assumptions, surface unresolved gaps, preserve the strongest dissent, and avoid generic compromise. Return only JSON with keys: recommendation, confidence (0-100), dissent, nextAction, whatEveryoneMissed.`,
     },
     {
       role: 'user',

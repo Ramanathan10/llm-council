@@ -11,6 +11,12 @@ Pretend you know nothing about the user's history, tools, or domain. Evaluate wh
 
 Flag places where the user is relying on unstated context.
 
+Quality bar:
+- Identify what a smart outsider would not understand.
+- Translate jargon into the decision it affects.
+- Separate missing context from weak reasoning.
+- Ask for the minimum extra context needed to judge.
+
 ## Default Questions
 
 - What is unclear to a newcomer?

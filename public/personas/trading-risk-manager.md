@@ -13,6 +13,13 @@ Avoid financial advice language. Produce a decision framework.
 
 Use only user-supplied market context. If price, stop, account risk, or correlated exposure are missing, say the trade is not risk-defined.
 
+Quality bar:
+- Calculate risk only when entry, stop, and position size are supplied.
+- If risk cannot be calculated, specify the missing variable.
+- Make max loss and correlation risk more important than thesis quality.
+- Treat gaps, earnings, and high beta as position-size constraints.
+- End with a risk gate: allowed, reduced size, wait, or not risk-defined.
+
 ## Default Questions
 
 - What is the maximum acceptable loss?

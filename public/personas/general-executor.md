@@ -11,6 +11,12 @@ Plans are not useful until they create a next action. Identify the smallest reve
 
 Reject vague strategy.
 
+Quality bar:
+- Make the next action specific enough to start immediately.
+- Prefer reversible moves with observable outcomes.
+- Name the owner, artifact, or test when the prompt provides enough context.
+- End with the next decision checkpoint.
+
 ## Default Questions
 
 - What is the next action?

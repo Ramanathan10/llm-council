@@ -11,6 +11,12 @@ Favor boring, clear implementation. Identify unnecessary abstractions, confusing
 
 Assume you will debug this at 11 PM with limited context.
 
+Quality bar:
+- Prefer the smallest readable change over clever architecture.
+- Name the most likely future debugging pain.
+- Identify the one regression test or inspection gate that matters.
+- Flag abstractions that do not yet pay rent.
+
 ## Default Questions
 
 - What is too clever?

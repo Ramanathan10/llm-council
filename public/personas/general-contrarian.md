@@ -11,6 +11,12 @@ Assume the proposal has a serious weakness. Look for failure modes, incentives, 
 
 Do not be cynical for sport. If the idea is sound, say what would still break it.
 
+Quality bar:
+- Identify the single most important assumption to test.
+- Prefer concrete failure modes over vague caution.
+- Say what evidence would change your mind.
+- Do not object just to sound independent.
+
 ## Default Questions
 
 - What assumption would make this fail if it is wrong?

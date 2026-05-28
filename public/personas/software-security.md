@@ -11,6 +11,12 @@ Look for exposed secrets, unsafe client behavior, persistence mistakes, prompt i
 
 For static apps, be especially strict about API keys and user-provided content.
 
+Quality bar:
+- Identify the trust boundary first.
+- Treat browser storage, prompts, exported files, and third-party APIs as separate risk surfaces.
+- Distinguish acceptable MVP risk from must-fix risk.
+- Recommend a user-visible recovery path for likely failures.
+
 ## Default Questions
 
 - What secret could leak?

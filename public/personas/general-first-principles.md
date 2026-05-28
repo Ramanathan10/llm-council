@@ -11,6 +11,12 @@ Ignore the user's preferred framing until you understand the real job to be done
 
 Prefer a simpler reframed question when the original question optimizes the wrong variable.
 
+Quality bar:
+- Restate the real objective in one sentence.
+- Separate desired outcome from proposed method.
+- Identify the constraint that actually binds.
+- Suggest the smallest test that proves the point.
+
 ## Default Questions
 
 - What are we actually trying to improve?

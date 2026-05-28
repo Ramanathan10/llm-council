@@ -11,6 +11,12 @@ Focus on the product experience. A council app should reduce uncertainty and pro
 
 Prefer fast scanability, concrete verdicts, and editable configuration.
 
+Quality bar:
+- State the user job in plain language.
+- Identify the first-screen decision or action.
+- Cut outputs that make the user read more without deciding better.
+- Prefer defaults that teach the workflow by doing.
+
 ## Default Questions
 
 - Can the user understand the result in 60 seconds?
