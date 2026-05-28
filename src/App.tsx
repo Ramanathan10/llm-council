@@ -55,6 +55,37 @@ type CouncilRun = {
 
 type ProviderMode = 'mock' | 'openai' | 'openrouter'
 
+type YahooChartResponse = {
+  chart?: {
+    result?: Array<{
+      meta?: {
+        currency?: string
+        exchangeName?: string
+        fiftyTwoWeekHigh?: number
+        fiftyTwoWeekLow?: number
+        fullExchangeName?: string
+        longName?: string
+        regularMarketDayHigh?: number
+        regularMarketDayLow?: number
+        regularMarketPrice?: number
+        regularMarketTime?: number
+        regularMarketVolume?: number
+        symbol?: string
+      }
+      timestamp?: number[]
+      indicators?: {
+        quote?: Array<{
+          close?: Array<number | null>
+          high?: Array<number | null>
+          low?: Array<number | null>
+          volume?: Array<number | null>
+        }>
+      }
+    }>
+    error?: { code?: string; description?: string }
+  }
+}
+
 const domainLabels: Record<Domain, string> = {
   general: 'General',
   software: 'Software Engineering',
@@ -88,6 +119,106 @@ Council quality contract:
 - Do not claim facts, dates, prices, benchmarks, APIs, or external events that were not supplied in the prompt.
 - Make the answer useful for a decision, not just descriptive.
 `.trim()
+
+function inferTicker(question: string) {
+  const candidates = question.toUpperCase().match(/\b[A-Z]{1,5}\b/g) ?? []
+  const ignored = new Set([
+    'A',
+    'AI',
+    'AM',
+    'I',
+    'IN',
+    'LLM',
+    'ME',
+    'OR',
+    'SHOULD',
+    'SWING',
+    'TAKE',
+    'THE',
+    'TRADE',
+  ])
+  return candidates.find((item) => !ignored.has(item)) ?? ''
+}
+
+function formatNumber(value: number | null | undefined, digits = 2) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value.toFixed(digits)
+    : 'n/a'
+}
+
+function formatVolume(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'n/a'
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
+  return String(Math.round(value))
+}
+
+function average(values: Array<number | null | undefined>) {
+  const clean = values.filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value),
+  )
+  if (!clean.length) return null
+  return clean.reduce((sum, value) => sum + value, 0) / clean.length
+}
+
+function latest(values: Array<number | null | undefined>) {
+  return [...values]
+    .reverse()
+    .find((value): value is number => typeof value === 'number' && Number.isFinite(value))
+}
+
+function buildYahooMarketContext(symbol: string, data: YahooChartResponse) {
+  const result = data.chart?.result?.[0]
+  if (!result || data.chart?.error) {
+    throw new Error(data.chart?.error?.description || 'Yahoo Finance returned no chart data.')
+  }
+
+  const meta = result.meta ?? {}
+  const quote = result.indicators?.quote?.[0] ?? {}
+  const closes = quote.close ?? []
+  const highs = quote.high ?? []
+  const lows = quote.low ?? []
+  const volumes = quote.volume ?? []
+  const latestClose = latest(closes)
+  const priorClose = latest(closes.slice(0, -1))
+  const closeChange =
+    typeof latestClose === 'number' && typeof priorClose === 'number'
+      ? latestClose - priorClose
+      : null
+  const closeChangePercent =
+    typeof closeChange === 'number' && typeof priorClose === 'number' && priorClose !== 0
+      ? (closeChange / priorClose) * 100
+      : null
+  const recentHigh = latest(highs.slice(-20))
+  const recentLow = latest(lows.slice(-20))
+  const twentyDayHigh = Math.max(
+    ...highs.slice(-20).filter((value): value is number => typeof value === 'number'),
+  )
+  const twentyDayLow = Math.min(
+    ...lows.slice(-20).filter((value): value is number => typeof value === 'number'),
+  )
+  const avgVolume20 = average(volumes.slice(-20))
+  const sourceUrl = `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/chart`
+  const finvizUrl = `https://finviz.com/quote.ashx?t=${encodeURIComponent(symbol)}`
+
+  return [
+    `Source: Yahoo Finance chart endpoint, 3mo daily data. Cross-check: ${sourceUrl} and ${finvizUrl}`,
+    `Ticker: ${meta.symbol || symbol}`,
+    `Company: ${meta.longName || 'n/a'}`,
+    `Exchange: ${meta.fullExchangeName || meta.exchangeName || 'n/a'}`,
+    `Current/regular price: ${formatNumber(meta.regularMarketPrice ?? latestClose)} ${meta.currency || ''}`.trim(),
+    `Latest daily close: ${formatNumber(latestClose)}`,
+    `Prior daily close: ${formatNumber(priorClose)}`,
+    `Daily close change: ${formatNumber(closeChange)} (${formatNumber(closeChangePercent)}%)`,
+    `Day range: ${formatNumber(meta.regularMarketDayLow)} - ${formatNumber(meta.regularMarketDayHigh)}`,
+    `Latest observed daily high/low: ${formatNumber(recentLow)} - ${formatNumber(recentHigh)}`,
+    `Approx 20-day high/low: ${formatNumber(Number.isFinite(twentyDayHigh) ? twentyDayHigh : null)} - ${formatNumber(Number.isFinite(twentyDayLow) ? twentyDayLow : null)}`,
+    `52-week range: ${formatNumber(meta.fiftyTwoWeekLow)} - ${formatNumber(meta.fiftyTwoWeekHigh)}`,
+    `Regular volume: ${formatVolume(meta.regularMarketVolume)}`,
+    `Approx 20-day average volume: ${formatVolume(avgVolume20)}`,
+    'User must still supply: intended timeframe, entry style, stop/risk budget, existing correlated exposure, and any thesis/catalyst not visible in price data.',
+  ].join('\n')
+}
 
 function buildDecisionContext(domain: Domain, question: string, marketContext: string) {
   if (domain !== 'trading') {
@@ -511,6 +642,9 @@ function App() {
   const [domain, setDomain] = useState<Domain>('software')
   const [question, setQuestion] = useState(sampleQuestions.software)
   const [marketContext, setMarketContext] = useState('')
+  const [marketTicker, setMarketTicker] = useState('')
+  const [isFetchingMarketData, setIsFetchingMarketData] = useState(false)
+  const [marketDataStatus, setMarketDataStatus] = useState<string | null>(null)
   const [activeRun, setActiveRun] = useState<CouncilRun | null>(null)
   const [history, setHistory] = useState<CouncilRun[]>(() => {
     const stored = localStorage.getItem('llm-council-history')
@@ -612,6 +746,42 @@ function App() {
     })
   }
 
+  async function fetchYahooContext() {
+    const symbol = (marketTicker.trim() || inferTicker(question)).toUpperCase()
+    if (!symbol) {
+      setMarketDataStatus('Enter a ticker first, for example NVDA.')
+      return
+    }
+
+    setMarketTicker(symbol)
+    setIsFetchingMarketData(true)
+    setMarketDataStatus(null)
+    try {
+      const response = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+          symbol,
+        )}?range=3mo&interval=1d`,
+      )
+      if (!response.ok) {
+        throw new Error(`Yahoo Finance returned ${response.status}`)
+      }
+      const data = (await response.json()) as YahooChartResponse
+      const context = buildYahooMarketContext(symbol, data)
+      setMarketContext((current) =>
+        current.trim() ? `${context}\n\nUser notes:\n${current.trim()}` : context,
+      )
+      setMarketDataStatus(`Loaded Yahoo context for ${symbol}.`)
+    } catch (error) {
+      setMarketDataStatus(
+        `Could not fetch Yahoo context for ${symbol}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }. Open Yahoo/Finviz and paste the key chart facts manually.`,
+      )
+    } finally {
+      setIsFetchingMarketData(false)
+    }
+  }
+
   async function runCouncil() {
     if (!question.trim() || selectedPersonas.length === 0) return
     setIsRunning(true)
@@ -690,6 +860,22 @@ function App() {
           {domain === 'trading' ? (
             <div className="control-group">
               <span className="control-label">Market context</span>
+              <div className="market-source-row">
+                <input
+                  aria-label="Ticker"
+                  onChange={(event) => setMarketTicker(event.target.value.toUpperCase())}
+                  placeholder="Ticker, e.g. NVDA"
+                  value={marketTicker}
+                />
+                <button
+                  className="secondary-button"
+                  disabled={isFetchingMarketData}
+                  onClick={fetchYahooContext}
+                  type="button"
+                >
+                  {isFetchingMarketData ? 'Fetching...' : 'Fetch Yahoo'}
+                </button>
+              </div>
               <textarea
                 className="market-context"
                 onChange={(event) => setMarketContext(event.target.value)}
@@ -697,9 +883,32 @@ function App() {
                 value={marketContext}
               />
               <p className="hint">
-                Trading councils use only this context. If it is empty, the correct
-                answer is insufficient data.
+                Trading councils use Yahoo-loaded context plus anything pasted here.
+                Finviz is best used as a manual cross-check.
               </p>
+              {marketTicker ? (
+                <p className="hint source-links">
+                  <a
+                    href={`https://finance.yahoo.com/quote/${encodeURIComponent(
+                      marketTicker,
+                    )}/chart`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Yahoo
+                  </a>
+                  <a
+                    href={`https://finviz.com/quote.ashx?t=${encodeURIComponent(
+                      marketTicker,
+                    )}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Finviz
+                  </a>
+                </p>
+              ) : null}
+              {marketDataStatus ? <p className="hint">{marketDataStatus}</p> : null}
             </div>
           ) : null}
 

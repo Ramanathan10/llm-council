@@ -134,6 +134,26 @@ textarea {
   min-height: 150px;
 }
 
+.market-source-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.market-source-row .secondary-button {
+  margin: 0;
+}
+
+.source-links {
+  display: flex;
+  gap: 12px;
+}
+
+.source-links a {
+  color: #173f4f;
+  font-weight: 800;
+}
+
 .provider-mode {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
