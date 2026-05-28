@@ -103,11 +103,29 @@ const sampleQuestions: Record<Domain, string> = {
 
 const tradingEvidenceContract = `
 Trading evidence contract:
-- Do not invent current price, support, resistance, moving averages, volume, catalysts, earnings dates, analyst news, or market regime.
+- Do not invent current price, support, resistance, moving averages, volume, catalysts, earnings dates, analyst news, fundamentals, valuation, or market regime.
 - Use only the market context supplied by the user in this run.
-- If the supplied context lacks current chart/market data, say the setup is not actionable from the available evidence.
+- If the supplied context lacks the data your persona needs, say the setup is not actionable from your evidence lane.
 - A valid swing-trade answer must include: data gap or evidence used, entry trigger, invalidation, stop zone, position sizing rule, no-trade condition, and review timing.
-- Never fill missing price levels with plausible-sounding numbers.
+- Never fill missing facts with plausible-sounding numbers or narratives.
+`.trim()
+
+const fundamentalNewsContract = `
+Bull/Bear evidence lane:
+- Base Bull Case and Bear Case on news, fundamentals, catalysts, valuation, earnings/revisions, sector narrative, and macro/industry risk.
+- Do not perform technical analysis except to defer timing to the Market Technician.
+- Do not invent news, earnings dates, guidance, analyst actions, valuation metrics, or financial results.
+- If supplied context only contains Yahoo chart data, say the fundamental/news case is under-specified and list the missing fundamental/news inputs.
+- Bull Case should answer: why could fundamentals/news justify upside?
+- Bear Case should answer: what fundamental/news risk could break the thesis?
+`.trim()
+
+const technicalAnalysisContract = `
+Market Technician evidence lane:
+- Base Market Technician analysis only on price, trend, support/resistance, moving averages, volume, relative strength, extension, and timeframe.
+- Do not make fundamental, valuation, earnings-quality, or news claims.
+- Use Yahoo chart context and user-supplied technical context when available.
+- If technical context is incomplete, return the exact chart inputs needed before judging entry timing.
 `.trim()
 
 const councilQualityContract = `
@@ -119,6 +137,18 @@ Council quality contract:
 - Do not claim facts, dates, prices, benchmarks, APIs, or external events that were not supplied in the prompt.
 - Make the answer useful for a decision, not just descriptive.
 `.trim()
+
+function tradingPersonaContract(persona: Persona) {
+  if (persona.id === 'trading-bull' || persona.id === 'trading-bear') {
+    return `${tradingEvidenceContract}\n\n${fundamentalNewsContract}`
+  }
+
+  if (persona.id === 'trading-technician') {
+    return `${tradingEvidenceContract}\n\n${technicalAnalysisContract}`
+  }
+
+  return tradingEvidenceContract
+}
 
 function inferTicker(question: string) {
   const candidates = question.toUpperCase().match(/\b[A-Z]{1,5}\b/g) ?? []
@@ -501,7 +531,7 @@ async function buildProviderCouncil(
         {
           role: 'system',
           content: `${persona.prompt}\n\n${
-            domain === 'trading' ? `${tradingEvidenceContract}\n\n` : ''
+            domain === 'trading' ? `${tradingPersonaContract(persona)}\n\n` : ''
           }${councilQualityContract}\n\n${outputContract}`,
         },
         {
@@ -534,7 +564,7 @@ async function buildProviderCouncil(
         {
           role: 'system',
           content: `${reviewer.prompt}\n\n${
-            domain === 'trading' ? `${tradingEvidenceContract}\n\n` : ''
+            domain === 'trading' ? `${tradingPersonaContract(reviewer)}\n\n` : ''
           }${councilQualityContract}\n\nYou are anonymously reviewing peer responses. Do not infer author names. Penalize generic advice, ungrounded claims, missing dissent, and invented evidence. Return only JSON with keys: strongest, blindSpot, missed.`,
         },
         {
