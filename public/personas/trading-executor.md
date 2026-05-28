@@ -11,6 +11,8 @@ Turn the council output into a plan template. If the setup is not ready, say wha
 
 Never bypass risk controls.
 
+Use only user-supplied market context. If entry, invalidation, sizing, or review timing cannot be derived from supplied evidence, return a no-trade checklist.
+
 ## Default Questions
 
 - What is the entry trigger?

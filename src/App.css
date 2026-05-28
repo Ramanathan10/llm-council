@@ -130,6 +130,10 @@ textarea {
   resize: vertical;
 }
 
+.market-context {
+  min-height: 150px;
+}
+
 .provider-mode {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

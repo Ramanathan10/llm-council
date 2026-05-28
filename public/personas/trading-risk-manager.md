@@ -11,6 +11,8 @@ No trade is valid without position size, invalidation, maximum loss, and review 
 
 Avoid financial advice language. Produce a decision framework.
 
+Use only user-supplied market context. If price, stop, account risk, or correlated exposure are missing, say the trade is not risk-defined.
+
 ## Default Questions
 
 - What is the maximum acceptable loss?

@@ -47,6 +47,7 @@ type CouncilRun = {
   createdAt: string
   domain: Domain
   question: string
+  marketContext?: string
   advisors: AdvisorResponse[]
   reviews: PeerReview[]
   chair: ChairVerdict
@@ -67,6 +68,32 @@ const sampleQuestions: Record<Domain, string> = {
     'Should we build the LLM Council as a static GitHub Pages app first, or start with a full-stack backend?',
   trading:
     'Should I take a swing trade in a strong stock after earnings, or wait for a retest?',
+}
+
+const tradingEvidenceContract = `
+Trading evidence contract:
+- Do not invent current price, support, resistance, moving averages, volume, catalysts, earnings dates, analyst news, or market regime.
+- Use only the market context supplied by the user in this run.
+- If the supplied context lacks current chart/market data, say the setup is not actionable from the available evidence.
+- A valid swing-trade answer must include: data gap or evidence used, entry trigger, invalidation, stop zone, position sizing rule, no-trade condition, and review timing.
+- Never fill missing price levels with plausible-sounding numbers.
+`.trim()
+
+function buildDecisionContext(domain: Domain, question: string, marketContext: string) {
+  if (domain !== 'trading') {
+    return `Domain: ${domainLabels[domain]}\nDecision: ${question}`
+  }
+
+  const context = marketContext.trim()
+  return [
+    `Domain: ${domainLabels[domain]}`,
+    `Decision: ${question}`,
+    '',
+    'User-supplied market context:',
+    context || '[none supplied]',
+    '',
+    tradingEvidenceContract,
+  ].join('\n')
 }
 
 function parseFrontmatter(markdown: string) {
@@ -312,7 +339,14 @@ async function buildProviderCouncil(
   provider: Exclude<ProviderMode, 'mock'>,
   apiKey: string,
   model: string,
+  marketContext: string,
 ): Promise<CouncilRun> {
+  const decisionContext = buildDecisionContext(domain, question, marketContext)
+  const outputContract =
+    domain === 'trading'
+      ? 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100). In recommendation and nextStep, explicitly state when market context is insufficient; do not invent technical levels.'
+      : 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100).'
+
   const advisors = await Promise.all(
     personas.map(async (persona) => {
       const fallback = {
@@ -325,11 +359,13 @@ async function buildProviderCouncil(
       const content = await callChatCompletion(provider, apiKey, model, [
         {
           role: 'system',
-          content: `${persona.prompt}\n\nReturn only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100).`,
+          content: `${persona.prompt}\n\n${
+            domain === 'trading' ? `${tradingEvidenceContract}\n\n` : ''
+          }${outputContract}`,
         },
         {
           role: 'user',
-          content: `Domain: ${domainLabels[domain]}\nDecision: ${question}`,
+          content: decisionContext,
         },
       ])
       return {
@@ -356,11 +392,13 @@ async function buildProviderCouncil(
       const content = await callChatCompletion(provider, apiKey, model, [
         {
           role: 'system',
-          content: `${reviewer.prompt}\n\nYou are anonymously reviewing peer responses. Do not infer author names. Return only JSON with keys: strongest, blindSpot, missed.`,
+          content: `${reviewer.prompt}\n\n${
+            domain === 'trading' ? `${tradingEvidenceContract}\n\n` : ''
+          }You are anonymously reviewing peer responses. Do not infer author names. Penalize any response that invents missing evidence. Return only JSON with keys: strongest, blindSpot, missed.`,
         },
         {
           role: 'user',
-          content: `Decision: ${question}\n\n${anonymousResponses}`,
+          content: `${decisionContext}\n\n${anonymousResponses}`,
         },
       ])
       return {
@@ -375,11 +413,15 @@ async function buildProviderCouncil(
     {
       role: 'system',
       content:
-        'You are the chair of an LLM council. Synthesize advisor answers and peer reviews into a decision verdict. Return only JSON with keys: recommendation, confidence (0-100), dissent, nextAction, whatEveryoneMissed.',
+        `You are the chair of an LLM council. Synthesize advisor answers and peer reviews into a decision verdict. ${
+          domain === 'trading'
+            ? 'For trading, reject invented levels and return "not actionable" when current market context is insufficient. '
+            : ''
+        }Return only JSON with keys: recommendation, confidence (0-100), dissent, nextAction, whatEveryoneMissed.`,
     },
     {
       role: 'user',
-      content: `Decision: ${question}\n\nAdvisor responses:\n${anonymousResponses}\n\nPeer reviews:\n${reviews
+      content: `${decisionContext}\n\nAdvisor responses:\n${anonymousResponses}\n\nPeer reviews:\n${reviews
         .map(
           (review) =>
             `Reviewer: ${review.reviewer.name}\nStrongest: ${review.strongest}\nBlind spot: ${review.blindSpot}\nMissed: ${review.missed}`,
@@ -393,6 +435,7 @@ async function buildProviderCouncil(
     createdAt: new Date().toISOString(),
     domain,
     question,
+    marketContext: marketContext.trim() || undefined,
     advisors,
     reviews,
     chair: parseModelJson(chairContent, chairFallback),
@@ -405,6 +448,9 @@ function saveMarkdown(run: CouncilRun) {
     '',
     `Question: ${run.question}`,
     `Created: ${new Date(run.createdAt).toLocaleString()}`,
+    ...(run.marketContext
+      ? ['', '## Market Context', '', run.marketContext]
+      : []),
     '',
     '## Chair Verdict',
     '',
@@ -454,6 +500,7 @@ function App() {
   const [personas, setPersonas] = useState<Persona[]>([])
   const [domain, setDomain] = useState<Domain>('software')
   const [question, setQuestion] = useState(sampleQuestions.software)
+  const [marketContext, setMarketContext] = useState('')
   const [activeRun, setActiveRun] = useState<CouncilRun | null>(null)
   const [history, setHistory] = useState<CouncilRun[]>(() => {
     const stored = localStorage.getItem('llm-council-history')
@@ -574,6 +621,7 @@ function App() {
               providerMode,
               selectedKey,
               model.trim(),
+              marketContext,
             )
           : buildMockCouncil(question, domain, selectedPersonas)
       setActiveRun(run)
@@ -628,6 +676,22 @@ function App() {
               placeholder="Paste the decision, proposal, trade thesis, or engineering question..."
             />
           </div>
+
+          {domain === 'trading' ? (
+            <div className="control-group">
+              <span className="control-label">Market context</span>
+              <textarea
+                className="market-context"
+                onChange={(event) => setMarketContext(event.target.value)}
+                placeholder="Paste current price, timeframe, trend, support/resistance, volume, market backdrop, earnings/catalysts, current position, and max risk..."
+                value={marketContext}
+              />
+              <p className="hint">
+                Trading councils use only this context. If it is empty, the correct
+                answer is insufficient data.
+              </p>
+            </div>
+          ) : null}
 
           <div className="control-group">
             <span className="control-label">Run mode</span>

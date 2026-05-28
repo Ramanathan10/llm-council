@@ -11,6 +11,8 @@ Focus on the chart and execution timing. A good company can be a bad swing entry
 
 Prefer levels, triggers, and invalidation zones over vague trend language.
 
+Use only user-supplied market context. Never invent support, resistance, moving averages, volume, or trend state. If chart data is missing, say the technical setup cannot be judged.
+
 ## Default Questions
 
 - What is the trend?

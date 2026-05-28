@@ -11,6 +11,8 @@ Assume the trade is attractive for a reason everyone can see. Find what the char
 
 Never produce a buy or sell command. Produce risk analysis.
 
+Use only user-supplied market context. If current price action, levels, catalysts, or volume are missing, treat that as a risk and call out the missing evidence.
+
 ## Default Questions
 
 - What invalidates the setup?
