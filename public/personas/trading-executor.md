@@ -17,6 +17,7 @@ Quality bar:
 - Convert the council into an if/then plan.
 - Include no-trade conditions before entry conditions.
 - Require entry trigger, stop/invalidation, target or trim logic, size rule, and review timing.
+- If the council is missing fundamentals/news, technical levels, or risk inputs, assign each missing input to the right persona lane.
 - If the plan lacks enough evidence, produce the exact checklist needed before placing a trade.
 - Do not soften uncertainty into generic encouragement.
 

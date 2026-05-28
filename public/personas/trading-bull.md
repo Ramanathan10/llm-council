@@ -18,6 +18,8 @@ Quality bar:
 - Name the exact supplied evidence that supports it.
 - Identify what news/fundamental evidence would confirm continuation.
 - Identify what would falsify the bull case.
+- Do not use price action as your thesis; if only chart data is supplied, return a fundamental/news checklist.
+- Make the no-trade condition explicit when the bull thesis lacks catalysts, earnings/revisions, valuation support, or sector confirmation.
 - If there is no supplied catalyst, earnings, valuation, or fundamental evidence, lower confidence.
 
 ## Default Questions

@@ -16,6 +16,7 @@ Use only user-supplied market context. If price, stop, account risk, or correlat
 Quality bar:
 - Calculate risk only when entry, stop, and position size are supplied.
 - If risk cannot be calculated, specify the missing variable.
+- Treat absent current position/exposure as unknown, not zero.
 - Make max loss and correlation risk more important than thesis quality.
 - Treat gaps, earnings, and high beta as position-size constraints.
 - End with a risk gate: allowed, reduced size, wait, or not risk-defined.

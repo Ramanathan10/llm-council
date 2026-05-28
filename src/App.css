@@ -381,6 +381,26 @@ code {
   line-height: 1.45;
 }
 
+.evidence-block {
+  background: #f7f8f5;
+  border: 1px solid #dce2d5;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.evidence-block strong {
+  color: #173f4f;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.evidence-block.missing {
+  background: #fff8ef;
+  border-color: #ecd3b9;
+}
+
 .advisor-card ul {
   margin: 0;
   padding-left: 18px;

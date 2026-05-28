@@ -21,8 +21,12 @@ type Persona = PersonaSummary & {
 type AdvisorResponse = {
   persona: Persona
   headline: string
+  evidenceUsed: string[]
+  missingInputs: string[]
   recommendation: string
   risks: string[]
+  invalidation: string
+  noTradeCondition: string
   nextStep: string
   confidence: number
 }
@@ -103,10 +107,10 @@ const sampleQuestions: Record<Domain, string> = {
 
 const tradingEvidenceContract = `
 Trading evidence contract:
-- Do not invent current price, support, resistance, moving averages, volume, catalysts, earnings dates, analyst news, fundamentals, valuation, or market regime.
-- Use only the market context supplied by the user in this run.
-- If the supplied context lacks the data your persona needs, say the setup is not actionable from your evidence lane.
-- A valid swing-trade answer must include: data gap or evidence used, entry trigger, invalidation, stop zone, position sizing rule, no-trade condition, and review timing.
+- Do not invent current price, support, resistance, moving averages, volume, catalysts, earnings dates, analyst news, fundamentals, valuation, open positions, closed positions, or market regime.
+- Use only the market context supplied by the user in this run. The app does not read Ram's trading journal or broker state.
+- If the supplied context lacks the data your persona needs, still produce a useful lane-specific checklist with the exact missing inputs, a provisional decision gate, and what would change the answer.
+- A valid swing-trade answer must include: evidence used, missing inputs, entry trigger or trigger checklist, invalidation, stop zone or stop-input needed, position sizing rule or sizing-input needed, no-trade condition, and review timing.
 - Never fill missing facts with plausible-sounding numbers or narratives.
 `.trim()
 
@@ -118,6 +122,7 @@ Bull/Bear evidence lane:
 - If supplied context only contains Yahoo chart data, say the fundamental/news case is under-specified and list the missing fundamental/news inputs.
 - Bull Case should answer: why could fundamentals/news justify upside?
 - Bear Case should answer: what fundamental/news risk could break the thesis?
+- Bull/Bear must not cite chart levels as evidence for their case. If they need timing, they must ask Market Technician for it.
 `.trim()
 
 const technicalAnalysisContract = `
@@ -126,6 +131,7 @@ Market Technician evidence lane:
 - Do not make fundamental, valuation, earnings-quality, or news claims.
 - Use Yahoo chart context and user-supplied technical context when available.
 - If technical context is incomplete, return the exact chart inputs needed before judging entry timing.
+- Market Technician must not cite catalysts, valuation, earnings, or news as evidence for entry quality.
 `.trim()
 
 const councilQualityContract = `
@@ -263,6 +269,8 @@ function buildDecisionContext(domain: Domain, question: string, marketContext: s
     'User-supplied market context:',
     context || '[none supplied]',
     '',
+    'Position-state rule: only use current position or exposure if it appears above. Do not infer holdings from prior history.',
+    '',
     tradingEvidenceContract,
   ].join('\n')
 }
@@ -297,12 +305,16 @@ function inferPersonaTone(persona: Persona, question: string) {
   if (text.includes('contrarian') || text.includes('bear')) {
     return {
       headline: 'Stress test before commitment',
+      evidenceUsed: ['Mock mode uses persona shape only, not live market evidence.'],
+      missingInputs: ['Current price context', 'Technical levels', 'Fundamental/news catalyst', 'Risk budget'],
       recommendation: `Do not accept the obvious answer yet. Treat "${shortQuestion}" as a hypothesis and identify the one failure mode that would make it expensive.`,
       risks: [
         'The plan may depend on assumptions that are currently untested.',
         'Optimistic framing can hide operational cost, timing risk, or weak demand.',
         'A single missing constraint could make the recommendation look better than it is.',
       ],
+      invalidation: 'The thesis is invalid if the core assumption cannot be verified with supplied evidence.',
+      noTradeCondition: 'Do not act while the decisive evidence is missing.',
       nextStep: 'Write the kill criteria first, then decide whether the idea still deserves execution.',
       confidence: 72,
     }
@@ -311,12 +323,16 @@ function inferPersonaTone(persona: Persona, question: string) {
   if (text.includes('first principles') || text.includes('architect')) {
     return {
       headline: 'Reframe the real problem',
+      evidenceUsed: ['Mock mode uses persona shape only, not live market evidence.'],
+      missingInputs: ['Decision constraints', 'Success metric', 'Failure criteria'],
       recommendation: `Strip the decision down to the underlying job. The useful question is not only "${shortQuestion}", but what outcome this decision must improve.`,
       risks: [
         'The proposed path may optimize implementation speed while missing the real user outcome.',
         'A copied pattern can preserve someone else’s constraints instead of yours.',
         'Too much abstraction early can make the system harder to change.',
       ],
+      invalidation: 'The plan fails if it optimizes the wrong outcome.',
+      noTradeCondition: 'Do not execute until the real constraint is named.',
       nextStep: 'Define the non-negotiable outcome and the smallest architecture that proves it.',
       confidence: 78,
     }
@@ -325,12 +341,16 @@ function inferPersonaTone(persona: Persona, question: string) {
   if (text.includes('expansion') || text.includes('bull')) {
     return {
       headline: 'Look for the bigger adjacent win',
+      evidenceUsed: ['Mock mode uses persona shape only, not live market evidence.'],
+      missingInputs: ['Upside catalyst', 'Market/fundamental confirmation', 'Timing evidence'],
       recommendation: `The base idea is useful, but the stronger move is to make it reusable. Design this so the same council engine can support multiple domains without rewrites.`,
       risks: [
         'Starting too narrow can create a dead-end workflow.',
         'A useful pattern may be trapped inside one domain if personas are hardcoded.',
         'The upside comes from repeatable councils, not one impressive answer.',
       ],
+      invalidation: 'Upside is invalid if the reusable path adds complexity without improving decisions.',
+      noTradeCondition: 'Do not act on upside alone without a defined invalidation.',
       nextStep: 'Separate council engine, persona files, and domain presets before adding polish.',
       confidence: 81,
     }
@@ -339,12 +359,16 @@ function inferPersonaTone(persona: Persona, question: string) {
   if (text.includes('outsider') || text.includes('product')) {
     return {
       headline: 'Make it understandable without insider context',
+      evidenceUsed: ['Mock mode uses persona shape only, not live market evidence.'],
+      missingInputs: ['User context', 'Decision history', 'Evidence source'],
       recommendation: `A new user should immediately understand what a council run does, why multiple roles matter, and what action to take after the verdict.`,
       risks: [
         'The product can feel like a prompt playground instead of a decision tool.',
         'Opaque personas reduce trust because users cannot inspect the judgment source.',
         'Too much AI ceremony can slow down the actual decision.',
       ],
+      invalidation: 'The output fails if the user cannot tell what to do next.',
+      noTradeCondition: 'Do not rely on output that cannot name its evidence.',
       nextStep: 'Show the flow visually: question, advisors, anonymous review, chair verdict, next action.',
       confidence: 76,
     }
@@ -353,12 +377,16 @@ function inferPersonaTone(persona: Persona, question: string) {
   if (text.includes('executor') || text.includes('risk manager')) {
     return {
       headline: 'Convert the verdict into a controlled action',
+      evidenceUsed: ['Mock mode uses persona shape only, not live market evidence.'],
+      missingInputs: ['Entry trigger', 'Stop/invalidation', 'Sizing rule', 'Review timing'],
       recommendation: `Make the first version useful in one sitting: enter a decision, run the council, inspect dissent, export the result.`,
       risks: [
         'A brilliant synthesis is wasted if it does not produce a next step.',
         'Without history, users cannot learn whether councils improve decisions.',
         'For trading, missing invalidation and sizing would make the output unsafe.',
       ],
+      invalidation: 'The plan is invalid if it cannot be converted into an if/then action.',
+      noTradeCondition: 'No action without a written trigger, invalidation, and size rule.',
       nextStep: 'Ship a static MVP with mock mode, editable Markdown personas, run history, and export.',
       confidence: 84,
     }
@@ -366,12 +394,16 @@ function inferPersonaTone(persona: Persona, question: string) {
 
   return {
     headline: 'Clarify the decision',
+    evidenceUsed: ['Mock mode uses persona shape only, not live market evidence.'],
+    missingInputs: ['Decision context', 'Evidence', 'Constraints'],
     recommendation: `Use the council to separate evidence, assumptions, dissent, and action for "${shortQuestion}".`,
     risks: [
       'The decision may be under-specified.',
       'The strongest objection may not come from the first answer.',
       'The next step may be too vague to execute.',
     ],
+    invalidation: 'The recommendation is invalid if it rests on unstated assumptions.',
+    noTradeCondition: 'Do not act until the decision has evidence and a no-go rule.',
     nextStep: 'Add context, run the council, and compare dissent before acting.',
     confidence: 70,
   }
@@ -436,6 +468,42 @@ function parseModelJson<T>(content: string, fallback: T): T {
     return JSON.parse(cleaned) as T
   } catch {
     return fallback
+  }
+}
+
+function asStringArray(value: unknown, fallback: string[]) {
+  return Array.isArray(value)
+    ? value
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter(Boolean)
+    : fallback
+}
+
+function normalizeAdvisorResponse(
+  persona: Persona,
+  parsed: Partial<Omit<AdvisorResponse, 'persona'>>,
+): Omit<AdvisorResponse, 'persona'> {
+  return {
+    headline: parsed.headline?.trim() || persona.name,
+    evidenceUsed: asStringArray(parsed.evidenceUsed, [
+      'No valid evidence list returned.',
+    ]),
+    missingInputs: asStringArray(parsed.missingInputs, [
+      'The model did not identify missing inputs.',
+    ]),
+    recommendation:
+      parsed.recommendation?.trim() ||
+      'The model did not return a valid recommendation.',
+    risks: asStringArray(parsed.risks, ['No valid risk list returned.']).slice(0, 3),
+    invalidation:
+      parsed.invalidation?.trim() || 'No valid invalidation returned.',
+    noTradeCondition:
+      parsed.noTradeCondition?.trim() || 'No valid no-trade condition returned.',
+    nextStep: parsed.nextStep?.trim() || 'Retry the run with more context.',
+    confidence:
+      typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence)
+        ? Math.max(0, Math.min(100, Math.round(parsed.confidence)))
+        : 50,
   }
 }
 
@@ -515,15 +583,19 @@ async function buildProviderCouncil(
   const decisionContext = buildDecisionContext(domain, question, marketContext)
   const outputContract =
     domain === 'trading'
-      ? 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100). In recommendation and nextStep, explicitly state when market context is insufficient; do not invent technical levels.'
-      : 'Return only JSON with keys: headline, recommendation, risks (array of 3 strings), nextStep, confidence (0-100). Avoid vague advice; make the recommendation role-specific.'
+      ? 'Return only JSON with keys: headline, evidenceUsed (array), missingInputs (array), recommendation, risks (array of 3 strings), invalidation, noTradeCondition, nextStep, confidence (0-100). In recommendation and nextStep, explicitly state when market context is insufficient; do not invent technical levels, fundamentals, news, or holdings.'
+      : 'Return only JSON with keys: headline, evidenceUsed (array), missingInputs (array), recommendation, risks (array of 3 strings), invalidation, noTradeCondition, nextStep, confidence (0-100). Avoid vague advice; make the recommendation role-specific.'
 
   const advisors = await Promise.all(
     personas.map(async (persona) => {
       const fallback = {
         headline: persona.name,
+        evidenceUsed: ['No valid JSON output'],
+        missingInputs: ['Retry is required because the response was not parseable.'],
         recommendation: 'The model did not return valid JSON. Inspect the raw prompt and retry.',
         risks: ['Invalid JSON output'],
+        invalidation: 'Invalid response format.',
+        noTradeCondition: 'Do not act on invalid model output.',
         nextStep: 'Retry the run or switch to mock mode.',
         confidence: 50,
       }
@@ -541,7 +613,7 @@ async function buildProviderCouncil(
       ])
       return {
         persona,
-        ...parseModelJson(content, fallback),
+        ...normalizeAdvisorResponse(persona, parseModelJson(content, fallback)),
       }
     }),
   )
@@ -549,7 +621,17 @@ async function buildProviderCouncil(
   const anonymousResponses = advisors
     .map(
       (advisor, index) =>
-        `Response ${String.fromCharCode(65 + index)}\nHeadline: ${advisor.headline}\nRecommendation: ${advisor.recommendation}\nRisks: ${advisor.risks.join('; ')}\nNext step: ${advisor.nextStep}`,
+        [
+          `Response ${String.fromCharCode(65 + index)}`,
+          `Headline: ${advisor.headline}`,
+          `Evidence used: ${advisor.evidenceUsed.join('; ')}`,
+          `Missing inputs: ${advisor.missingInputs.join('; ')}`,
+          `Recommendation: ${advisor.recommendation}`,
+          `Risks: ${advisor.risks.join('; ')}`,
+          `Invalidation: ${advisor.invalidation}`,
+          `No-trade condition: ${advisor.noTradeCondition}`,
+          `Next step: ${advisor.nextStep}`,
+        ].join('\n'),
     )
     .join('\n\n')
 
@@ -565,7 +647,7 @@ async function buildProviderCouncil(
           role: 'system',
           content: `${reviewer.prompt}\n\n${
             domain === 'trading' ? `${tradingPersonaContract(reviewer)}\n\n` : ''
-          }${councilQualityContract}\n\nYou are anonymously reviewing peer responses. Do not infer author names. Penalize generic advice, ungrounded claims, missing dissent, and invented evidence. Return only JSON with keys: strongest, blindSpot, missed.`,
+          }${councilQualityContract}\n\nYou are anonymously reviewing peer responses. Do not infer author names. Penalize generic advice, role-lane violations, ungrounded claims, missing dissent, invented evidence, invented holdings, and missing no-trade gates. Return only JSON with keys: strongest, blindSpot, missed.`,
         },
         {
           role: 'user',
@@ -586,7 +668,7 @@ async function buildProviderCouncil(
       content:
         `You are the chair of an LLM council. Synthesize advisor answers and peer reviews into a decision verdict. ${
           domain === 'trading'
-            ? 'For trading, reject invented levels and return "not actionable" when current market context is insufficient. '
+            ? 'For trading, reject invented levels, fundamentals, news, and holdings. If context is insufficient, the verdict must still be operational: say "not actionable yet" and name the exact missing inputs, the next data-gathering action, the no-trade gate, and which persona owns the blocker. '
             : ''
         }Use the council quality contract: separate evidence from assumptions, surface unresolved gaps, preserve the strongest dissent, and avoid generic compromise. Return only JSON with keys: recommendation, confidence (0-100), dissent, nextAction, whatEveryoneMissed.`,
     },
@@ -638,11 +720,19 @@ function saveMarkdown(run: CouncilRun) {
       '',
       advisor.headline,
       '',
+      'Evidence used:',
+      ...advisor.evidenceUsed.map((item) => `- ${item}`),
+      '',
+      'Missing inputs:',
+      ...advisor.missingInputs.map((item) => `- ${item}`),
+      '',
       advisor.recommendation,
       '',
       'Risks:',
       ...advisor.risks.map((risk) => `- ${risk}`),
       '',
+      `Invalidation: ${advisor.invalidation}`,
+      `No-trade condition: ${advisor.noTradeCondition}`,
       `Next step: ${advisor.nextStep}`,
       '',
     ]),
@@ -909,12 +999,12 @@ function App() {
               <textarea
                 className="market-context"
                 onChange={(event) => setMarketContext(event.target.value)}
-                placeholder="Paste current price, timeframe, trend, support/resistance, volume, market backdrop, earnings/catalysts, current position, and max risk..."
+                placeholder="Paste current price, timeframe, trend, support/resistance, volume, news/catalysts, fundamentals/valuation, current open position/exposure, and max risk..."
                 value={marketContext}
               />
               <p className="hint">
-                Trading councils use Yahoo-loaded context plus anything pasted here.
-                Finviz is best used as a manual cross-check.
+                Trading councils use Yahoo-loaded chart context plus anything pasted here.
+                They do not read the trading journal or infer closed/open positions.
               </p>
               {marketTicker ? (
                 <p className="hint source-links">
@@ -1133,12 +1223,34 @@ function App() {
                   <article className="advisor-card" key={advisor.persona.id}>
                     <span className="persona-name">{advisor.persona.name}</span>
                     <h4>{advisor.headline}</h4>
+                    <div className="evidence-block">
+                      <strong>Evidence</strong>
+                      <ul>
+                        {advisor.evidenceUsed.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="evidence-block missing">
+                      <strong>Missing</strong>
+                      <ul>
+                        {advisor.missingInputs.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
                     <p>{advisor.recommendation}</p>
                     <ul>
                       {advisor.risks.map((risk) => (
                         <li key={risk}>{risk}</li>
                       ))}
                     </ul>
+                    <p>
+                      <strong>Invalidation:</strong> {advisor.invalidation}
+                    </p>
+                    <p>
+                      <strong>No-trade:</strong> {advisor.noTradeCondition}
+                    </p>
                     <div className="next-step">{advisor.nextStep}</div>
                   </article>
                 ))}

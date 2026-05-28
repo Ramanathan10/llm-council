@@ -20,6 +20,8 @@ Quality bar:
 - Identify where the narrative could be wrong, crowded, or already priced in using only supplied evidence.
 - Distinguish "avoid" from "wait for a cleaner trigger."
 - Explain what evidence would make the bear case weaker.
+- Do not cite support, resistance, moving averages, or volume as bearish evidence.
+- Make the no-trade condition explicit when the fundamental/news downside cannot be ruled out.
 - If fundamental/news data is missing, make missing data the central objection.
 
 ## Default Questions

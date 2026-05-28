@@ -20,6 +20,8 @@ Quality bar:
 - Separate setup quality from entry timing.
 - Identify whether the trade is extended, constructive, broken, or unclear.
 - Require a trigger and invalidation before calling the setup actionable.
+- If current support/resistance is not supplied, derive only from supplied Yahoo range fields and label them approximate.
+- Never use news or fundamentals to justify entry. Your job is timing and chart risk only.
 - If no chart facts are supplied, return a chart-data checklist.
 
 ## Default Questions
