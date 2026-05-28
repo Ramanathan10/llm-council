@@ -241,6 +241,28 @@ function parseModelJson<T>(content: string, fallback: T): T {
   }
 }
 
+function normalizeProviderModel(provider: Exclude<ProviderMode, 'mock'>, model: string) {
+  const trimmed = model.trim()
+  if (provider === 'openai' && trimmed.startsWith('openai/')) {
+    return trimmed.replace(/^openai\//, '')
+  }
+  return trimmed
+}
+
+async function readProviderError(response: Response) {
+  const fallback = await response.text().catch(() => '')
+  try {
+    const parsed = JSON.parse(fallback) as {
+      error?: { message?: string; type?: string; code?: string }
+    }
+    const message = parsed.error?.message
+    const code = parsed.error?.code || parsed.error?.type
+    return [message, code && `code: ${code}`].filter(Boolean).join(' ')
+  } catch {
+    return fallback
+  }
+}
+
 async function callChatCompletion(
   provider: Exclude<ProviderMode, 'mock'>,
   apiKey: string,
@@ -265,7 +287,7 @@ async function callChatCompletion(
     method: 'POST',
     headers,
     body: JSON.stringify({
-      model,
+      model: normalizeProviderModel(provider, model),
       temperature: 0.35,
       messages,
     }),
@@ -273,7 +295,10 @@ async function callChatCompletion(
 
   if (!response.ok) {
     const label = provider === 'openai' ? 'OpenAI' : 'OpenRouter'
-    throw new Error(`${label} returned ${response.status}`)
+    const detail = await readProviderError(response)
+    throw new Error(
+      `${label} returned ${response.status}${detail ? `: ${detail}` : ''}`,
+    )
   }
 
   const data = await response.json()
